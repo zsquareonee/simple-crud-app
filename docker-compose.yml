@@ -1,0 +1,32 @@
+services:
+  api:
+    build: ./app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/fastapicrud
+      - FRONTEND_URL=http://127.0.0.1:8080
+    depends_on:
+      db:
+        condition: service_healthy
+
+  client:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    environment:
+      - USERS_API=http://127.0.0.1:8000
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fastapicrud
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
