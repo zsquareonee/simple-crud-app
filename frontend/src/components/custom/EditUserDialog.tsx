@@ -1,77 +1,177 @@
-import { Pencil } from "lucide-react"
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { Loader2, Pencil } from "lucide-react"
+
+import { getErrorMessage, updateUser } from "@/api/users"
+import { userFormSchema, type UserFormValues } from "@/schemas/userSchema"
+import type { User } from "@/types/user"
 import { Button } from "../ui/button"
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog"
-import { Field, FieldGroup } from "../ui/field"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog"
+import { Field, FieldError, FieldGroup } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Textarea } from "../ui/textarea"
-import type { User } from "@/mocks/UserMock"
-import { useContext } from "react"
-import { userContext } from "@/context/userContext"
-import { editUser } from "@/api/actions"
 
-const EditUserDialog = (userData: User) => {
+interface EditUserDialogProps {
+  user: User
+}
 
-  const { update, setUpdate } = useContext(userContext)!
+const EditUserDialog = ({ user }: EditUserDialogProps) => {
+  const [open, setOpen] = useState(false)
+  const queryClient = useQueryClient()
 
-  const submitAction = async (formData: FormData) => {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<UserFormValues>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      name: user.name,
+      email: user.email,
+      age: user.age,
+      bio: user.bio,
+    },
+  })
 
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const age = formData.get("age") as unknown as number;
-    const bio = formData.get("bio") as string;
-    const id = userData.id
+  const mutation = useMutation({
+    mutationFn: (values: UserFormValues) => updateUser(user.id, values),
+    onSuccess: (updatedUser) => {
+      toast.success(`User "${updatedUser.name}" updated!`)
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setOpen(false)
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "Failed to update user. Please try again."))
+    },
+  })
 
-    const response = await editUser({ name, email, age, bio, id })
-    if (!response) return;
-    setUpdate(!update)
+  const onSubmit = (values: UserFormValues) => {
+    mutation.mutate(values)
+  }
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      reset({
+        name: user.name,
+        email: user.email,
+        age: user.age,
+        bio: user.bio,
+      })
+    }
+    setOpen(nextOpen)
   }
 
   return (
-    <>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="icon" aria-label={`Edit ${user.name}`}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <DialogHeader>
+            <DialogTitle>Edit User #{user.id}</DialogTitle>
+            <DialogDescription>
+              Update information for {user.name}. Click save when you&apos;re done.
+            </DialogDescription>
+          </DialogHeader>
 
-      <Dialog>
-        <DialogTrigger render={<Button><Pencil /></Button>} />
-        <DialogContent className="sm:max-w-sm">
-          <form action={submitAction}>
-            <DialogHeader>
-              <DialogTitle>Edit your user</DialogTitle>
-              <DialogDescription>
-                Make changes to the user here. Click save when you&apos;re
-                done.
-              </DialogDescription>
-            </DialogHeader>
-            <FieldGroup>
-              <div className="flex flex-col sm:flex-row gap-5">
-                <Field>
-                  <Label htmlFor="name-newuser">Name</Label>
-                  <Input id="name-newuser" name="name" defaultValue={userData.name} />
-                </Field>
-                <Field className="sm:w-20">
-                  <Label htmlFor="age-newuser">Age</Label>
-                  <Input type="number" min={0} max={120} id="age-newuser" name="age" defaultValue={userData.age} />
-                </Field>
-              </div>
-              <Field>
-                <Label htmlFor="email-newuser">Email</Label>
-                <Input id="email-newuser" name="email" defaultValue={userData.email} />
+          <FieldGroup className="py-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Field className="flex-1">
+                <Label htmlFor={`edit-name-${user.id}`}>Name</Label>
+                <Input
+                  id={`edit-name-${user.id}`}
+                  {...register("name")}
+                  aria-invalid={!!errors.name}
+                />
+                {errors.name?.message && (
+                  <FieldError>{errors.name.message}</FieldError>
+                )}
               </Field>
-              <Field>
-                <Label htmlFor="bio-newuser">bio</Label>
-                <Textarea id="bio-newuser" name="bio" defaultValue={userData.bio} />
+
+              <Field className="sm:w-28">
+                <Label htmlFor={`edit-age-${user.id}`}>Age</Label>
+                <Input
+                  id={`edit-age-${user.id}`}
+                  type="number"
+                  min={0}
+                  max={120}
+                  {...register("age", { valueAsNumber: true })}
+                  aria-invalid={!!errors.age}
+                />
+                {errors.age?.message && (
+                  <FieldError>{errors.age.message}</FieldError>
+                )}
               </Field>
-            </FieldGroup>
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline">Cancel</Button>} />
-              <DialogClose render={
-                <Button type="submit">Save changes</Button>
-              } />
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+            </div>
+
+            <Field>
+              <Label htmlFor={`edit-email-${user.id}`}>Email</Label>
+              <Input
+                id={`edit-email-${user.id}`}
+                type="email"
+                {...register("email")}
+                aria-invalid={!!errors.email}
+              />
+              {errors.email?.message && (
+                <FieldError>{errors.email.message}</FieldError>
+              )}
+            </Field>
+
+            <Field>
+              <Label htmlFor={`edit-bio-${user.id}`}>Bio</Label>
+              <Textarea
+                id={`edit-bio-${user.id}`}
+                rows={3}
+                {...register("bio")}
+                aria-invalid={!!errors.bio}
+              />
+              {errors.bio?.message && (
+                <FieldError>{errors.bio.message}</FieldError>
+              )}
+            </Field>
+          </FieldGroup>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

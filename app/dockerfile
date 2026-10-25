@@ -1,16 +1,28 @@
-FROM python:3.14-slim
+FROM python:3.12-slim
+
+# Create a nonroot user and group
+RUN groupadd -g 10001 nonroot && \
+    useradd -u 10001 -g nonroot -s /bin/bash -m nonroot
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock README.md ./
+RUN chown -R nonroot:nonroot /app
+
+USER nonroot
+
+COPY --chown=nonroot:nonroot pyproject.toml uv.lock README.md ./
 
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY src/ ./src/
+COPY --chown=nonroot:nonroot src/ ./src/
 
 RUN uv sync --frozen --no-dev
 
 ENV PYTHONPATH=/app/src
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENV PATH="/app/.venv/bin:$PATH"
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,67 +1,167 @@
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { Loader2, PlusIcon } from "lucide-react"
+
+import { createUser, getErrorMessage } from "@/api/users"
+import { userFormSchema, type UserFormValues } from "@/schemas/userSchema"
 import { Button } from "../ui/button"
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog"
-import { Field, FieldGroup } from "../ui/field"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog"
+import { Field, FieldError, FieldGroup } from "../ui/field"
 import { Input } from "../ui/input"
 import { Label } from "../ui/label"
 import { Textarea } from "../ui/textarea"
-import { useContext } from "react"
-import { userContext } from "@/context/userContext"
-import { PlusIcon } from "lucide-react"
-import { createUser } from "@/api/actions"
 
 const AddUserDialog = () => {
+  const [open, setOpen] = useState(false)
+  const queryClient = useQueryClient()
 
-  const { update, setUpdate } = useContext(userContext)!
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<UserFormValues>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      age: 25,
+      bio: "",
+    },
+  })
 
-  const submitAction = async (formData: FormData) => {
-    const name = formData.get("name") as string;
-    const email = formData.get("email") as string;
-    const age = formData.get("age") as unknown as number;
-    const bio = formData.get("bio") as string;
+  const mutation = useMutation({
+    mutationFn: createUser,
+    onSuccess: (data) => {
+      toast.success(`User "${data.name}" successfully created!`)
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      reset()
+      setOpen(false)
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "Failed to create user. Please try again."))
+    },
+  })
 
-    const response = await createUser({ name, email, age, bio })
-    if (!response) return;
-    setUpdate(!update)
+  const onSubmit = (values: UserFormValues) => {
+    mutation.mutate(values)
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      reset()
+    }
+    setOpen(nextOpen)
   }
 
   return (
-    <Dialog>
-      <DialogTrigger render={<Button type="button">Add user <PlusIcon /></Button>} />
-      <DialogContent className="sm:max-w-sm">
-        <form action={submitAction}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger
+        render={
+          <Button type="button">
+            Add user <PlusIcon className="ml-1 h-4 w-4" />
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Create a new user</DialogTitle>
             <DialogDescription>
-              Make changes to your profile here. Click save when you&apos;re
-              done.
+              Enter the user&apos;s personal details below.
             </DialogDescription>
           </DialogHeader>
-          <FieldGroup>
-            <div className="flex flex-col sm:flex-row gap-5">
-              <Field>
-                <Label htmlFor="name-newuser">Name</Label>
-                <Input id="name-newuser" name="name" />
+
+          <FieldGroup className="py-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Field className="flex-1">
+                <Label htmlFor="add-user-name">Name</Label>
+                <Input
+                  id="add-user-name"
+                  placeholder="e.g. Jane Doe"
+                  {...register("name")}
+                  aria-invalid={!!errors.name}
+                />
+                {errors.name?.message && (
+                  <FieldError>{errors.name.message}</FieldError>
+                )}
               </Field>
-              <Field className="sm:w-20">
-                <Label htmlFor="age-newuser">Age</Label>
-                <Input type="number" min={0} max={120} id="age-newuser" name="age" />
+
+              <Field className="sm:w-28">
+                <Label htmlFor="add-user-age">Age</Label>
+                <Input
+                  id="add-user-age"
+                  type="number"
+                  min={0}
+                  max={120}
+                  {...register("age", { valueAsNumber: true })}
+                  aria-invalid={!!errors.age}
+                />
+                {errors.age?.message && (
+                  <FieldError>{errors.age.message}</FieldError>
+                )}
               </Field>
             </div>
+
             <Field>
-              <Label htmlFor="email-newuser">Email</Label>
-              <Input id="email-newuser" name="email" />
+              <Label htmlFor="add-user-email">Email</Label>
+              <Input
+                id="add-user-email"
+                type="email"
+                placeholder="jane@example.com"
+                {...register("email")}
+                aria-invalid={!!errors.email}
+              />
+              {errors.email?.message && (
+                <FieldError>{errors.email.message}</FieldError>
+              )}
             </Field>
+
             <Field>
-              <Label htmlFor="bio-newuser">bio</Label>
-              <Textarea id="bio-newuser" name="bio" />
+              <Label htmlFor="add-user-bio">Bio</Label>
+              <Textarea
+                id="add-user-bio"
+                placeholder="Write a brief bio..."
+                rows={3}
+                {...register("bio")}
+                aria-invalid={!!errors.bio}
+              />
+              {errors.bio?.message && (
+                <FieldError>{errors.bio.message}</FieldError>
+              )}
             </Field>
           </FieldGroup>
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline">Cancel</Button>} />
-            <DialogClose
-              render={
-                <Button type="submit">Save changes</Button>
-              } />
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save user"
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

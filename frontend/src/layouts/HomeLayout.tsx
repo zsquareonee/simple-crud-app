@@ -1,21 +1,30 @@
 import Footer from "@/components/custom/Footer"
+import ThemeToggle from "@/components/custom/ThemeToggle"
+import { UsersIcon } from "lucide-react"
 import { Outlet } from "react-router"
-import { userContext } from "@/context/userContext"
-import { useState } from "react"
-import { type User } from "@/mocks/UserMock"
-
 
 const HomeLayout = () => {
-  const [users, setUsers] = useState<User[]>([])
-  const [update, setUpdate] = useState<boolean>(true)
-
   return (
-    <div className="min-h-screen flex flex-col">
-      <div className="flex justify-center flex-1">
-        <userContext.Provider value={{ users, setUsers, update, setUpdate }}>
-          <Outlet />
-        </userContext.Provider>
-      </div>
+    <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <header className="border-b border-border sticky top-0 z-30 bg-background/80 backdrop-blur-sm">
+        <div className="w-full max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-primary text-primary-foreground rounded-lg shadow-xs">
+              <UsersIcon className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="font-semibold text-lg leading-tight">User Manager</h1>
+              <p className="text-xs text-muted-foreground">FastAPI &amp; React CRUD</p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-6">
+        <Outlet />
+      </main>
+
       <div className="flex justify-center">
         <Footer />
       </div>

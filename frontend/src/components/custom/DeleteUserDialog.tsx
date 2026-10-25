@@ -1,48 +1,94 @@
-import { Trash } from "lucide-react"
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog"
+import { useState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { Loader2, Trash2 } from "lucide-react"
+
+import { deleteUser, getErrorMessage } from "@/api/users"
 import { Button } from "../ui/button"
-import { userContext } from "@/context/userContext"
-import { useContext } from "react"
-import { deleteUser } from "@/api/actions"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "../ui/dialog"
 
 interface DeleteUserDialogProps {
   id: number
+  userName: string
 }
 
-const DeleteUserDialog = ({ id }: DeleteUserDialogProps) => {
+const DeleteUserDialog = ({ id, userName }: DeleteUserDialogProps) => {
+  const [open, setOpen] = useState(false)
+  const queryClient = useQueryClient()
 
-  const { update, setUpdate } = useContext(userContext)!
+  const mutation = useMutation({
+    mutationFn: () => deleteUser(id),
+    onSuccess: () => {
+      toast.success(`User "${userName}" has been deleted`)
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      setOpen(false)
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "Could not delete the user."))
+    },
+  })
 
-  const submitAction = async () => {
-    const response = await deleteUser(id)
-    if (!response) return;
-    setUpdate(!update)
+  const handleDelete = () => {
+    mutation.mutate()
   }
 
   return (
-    <>
-      <Dialog>
-        <DialogTrigger render={<Button variant={"destructive"}><Trash /></Button>} />
-        <DialogContent className="sm:max-w-sm">
-          <form action={submitAction}>
-            <DialogHeader>
-              <DialogTitle>¿Are you sure you want to delete this user?</DialogTitle>
-              <DialogDescription>
-                This change can't be undone
-              </DialogDescription>
-            </DialogHeader>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button
+            variant="destructive"
+            size="icon"
+            aria-label={`Delete ${userName}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        }
+      />
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete User</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete <strong>{userName}</strong> (ID: #{id})?
+            This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
 
-            <DialogFooter>
-              <DialogClose render={<Button variant="outline">Cancel</Button>} />
-              <DialogClose
-                render={
-                  <Button type="submit" variant={"destructive"}>Delete user</Button>
-                } />
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+        <DialogFooter className="gap-2 sm:gap-0 mt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={mutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              "Confirm Delete"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

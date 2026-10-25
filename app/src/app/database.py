@@ -1,15 +1,27 @@
-import os
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/fastapicrud")
+from app.config import settings
 
-  
-engine = create_async_engine(DATABASE_URL, echo=True)
-SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
+
+
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.SQL_ECHO,
+    pool_pre_ping=True,
+)
+
+SessionLocal = async_sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+)
+
 
 async def get_db():
-  async with SessionLocal() as session:
-    yield session
+    async with SessionLocal() as session:
+        yield session
